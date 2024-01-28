@@ -1,26 +1,84 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import GraphState from './graph_state';
+import HtmlContext from './html_context';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+
 export function activate(context: vscode.ExtensionContext) {
+    console.log('[codegraph] loaded');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "codegraph" is now active!');
+    let state: GraphState = {
+        context: context,
+        panel: undefined,
+        column: vscode.ViewColumn.Two,
+        resources: vscode.Uri.joinPath(context.extensionUri, 'static'),
+    }
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('codegraph.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from CodeGraph!');
-	});
+    let disposable = vscode.commands.registerCommand('codegraph.open_code_graph',
+        async () => {
+            console.log('[codegraph] open_code_graph')
 
-	context.subscriptions.push(disposable);
+            if (state.panel) {
+                // Show existing panel
+                state.panel.reveal(state.column);
+            } else {
+                // Create a new panel if it doesn't exists
+                createGraphView(state);
+            }
+        });
+
+    context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }
+
+// Creates a webview for graph
+async function createGraphView(state: GraphState) {
+    state.panel = vscode.window.createWebviewPanel(
+        'codegraph',
+        'Code Graph',
+        state.column,
+        {
+            localResourceRoots: [state.resources],
+            enableScripts: true,
+        }
+    );
+
+    state.panel.onDidDispose(() => {
+        console.log('[codegraph] WebView panel is disposed');
+    }, null, state.context.subscriptions);
+
+    const htmlContext: HtmlContext = {
+        context: state.context,
+        webview: state.panel.webview,
+        resources: state.resources,
+    }
+
+    state.panel.webview.html = await getWebviewContent(htmlContext);
+}
+
+// Generates HTML content for WebView
+async function getWebviewContent(ctx: HtmlContext): Promise<string> {
+
+    // Load webview HTML page
+    const htmlPath = vscode.Uri.joinPath(ctx.resources, 'webview.html');
+    const htmlFile = await vscode.workspace.fs.readFile(htmlPath);
+    let html = new TextDecoder('utf-8').decode(htmlFile);
+
+    // Convert loadable content URI to webview URI
+    html = include_local_resource("main.js", "---MAIN-JS--URI---", html, ctx);
+
+    return html;
+}
+
+// Insert webview local resource URI into HTML page
+function include_local_resource(
+    file: string,
+    placeholder: string,
+    html: string,
+    ctx: HtmlContext): string {
+
+    const webviewUri = ctx.webview.asWebviewUri(vscode.Uri.joinPath(ctx.resources, file))
+    const filledHtml = html.replace(placeholder, webviewUri.toString());
+
+    return filledHtml;
+}

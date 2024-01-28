@@ -14,8 +14,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "codegraph.helloWorld",
-        "title": "Hello World"
+        "command": "codegraph.open_code_graph",
+        "title": "Open Code Graph"
       }
     ]
   },
