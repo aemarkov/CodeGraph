@@ -10,7 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
         context: context,
         panel: undefined,
         column: vscode.ViewColumn.Two,
-        resources: vscode.Uri.joinPath(context.extensionUri, 'static'),
+        resources: vscode.Uri.joinPath(context.extensionUri, 'dist/webview'),
     };
 
     // open graph command
@@ -76,12 +76,13 @@ async function createGraphView(state: GraphState) {
 async function getWebviewContent(ctx: HtmlContext): Promise<string> {
 
     // Load webview HTML page
-    const htmlPath = vscode.Uri.joinPath(ctx.resources, 'webview.html');
+    const htmlPath = vscode.Uri.joinPath(ctx.resources, 'index.html');
     const htmlFile = await vscode.workspace.fs.readFile(htmlPath);
     let html = new TextDecoder('utf-8').decode(htmlFile);
 
     // Convert loadable content URI to webview URI
-    html = include_local_resource("main.js", "---MAIN-JS--URI---", html, ctx);
+    html = include_local_resource("bundle.js", "---MAIN-JS--URI---", html, ctx);
+    html = include_local_resource("index.css", "---MAIN-CSS--URI---", html, ctx);
 
     return html;
 }
