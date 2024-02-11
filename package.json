@@ -15,9 +15,35 @@
     "commands": [
       {
         "command": "codegraph.open_code_graph",
-        "title": "Open Code Graph"
+        "title": "Open Code Graph",
+        "category": "CodeGraph"
+      },
+      {
+        "command": "codegraph.inspect_symbol",
+        "title": "Inspect symbol",
+        "category": "CodeGraph"
       }
-    ]
+    ],
+    "submenus": [
+      {
+        "id": "codegraph.submenu",
+        "label": "CodeGrapph"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "group": "Code Graph",
+          "submenu": "codegraph.submenu",
+          "when": "editorTextFocus"
+        }
+      ],
+      "codegraph.submenu": [
+        {
+          "command": "codegraph.inspect_symbol"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
