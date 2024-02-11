@@ -1,0 +1,69 @@
+vscode.executeDocumentSymbolProvider - Execute document symbol provider.
+    uri - Uri of a text document
+    (returns) - A promise that resolves to an array of SymbolInformation and DocumentSymbol instances.
+
+Notes:
+    - Result can be cast to SymbolInformation or DocumentSymbol. They have some common
+      and some distinct fields.
+    - For some reason console.log(object) doesn't print out all fields
+    - Result:
+        - range: function body Range
+        - selectionRange: function name Range (not including any keywords, type and arguments)
+        - detail:
+            - c/cpp: signature (without function name and argument names)
+            - python: empty string
+
+vscode.executeWorkspaceSymbolProvider - Execute all workspace symbol providers.
+    query - Search string
+    (returns) - A promise that resolves to an array of SymbolInformation-instances.
+
+vscode.executeDefinitionProvider - Execute all definition providers.
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of Location or LocationLink instances.
+
+vscode.executeTypeDefinitionProvider - Execute all type definition providers.
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of Location or LocationLink instances.
+
+vscode.executeDeclarationProvider - Execute all declaration providers.
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of Location or LocationLink instances.
+
+vscode.executeImplementationProvider - Execute all implementation providers.
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of Location or LocationLink instances.
+
+vscode.executeReferenceProvider - Execute all reference providers.
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of Location-instances.
+
+vscode.prepareCallHierarchy - Prepare call hierarchy at a position inside a document
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of CallHierarchyItem-instances
+
+vscode.provideIncomingCalls - Compute incoming calls for an item
+    item - A call hierarchy item
+    (returns) - A promise that resolves to an array of CallHierarchyIncomingCall-instances
+
+vscode.provideOutgoingCalls - Compute outgoing calls for an item
+    item - A call hierarchy item
+    (returns) - A promise that resolves to an array of CallHierarchyOutgoingCall-instances
+
+vscode.prepareTypeHierarchy - Prepare type hierarchy at a position inside a document
+    uri - Uri of a text document
+    position - A position in a text document
+    (returns) - A promise that resolves to an array of TypeHierarchyItem-instances
+
+vscode.provideSupertypes - Compute supertypes for an item
+    item - A type hierarchy item
+    (returns) - A promise that resolves to an array of TypeHierarchyItem-instances
+
+vscode.provideSubtypes - Compute subtypes for an item
+    item - A type hierarchy item
+    (returns) - A promise that resolves to an array of TypeHierarchyItem-instances
