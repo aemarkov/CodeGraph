@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import GraphView from './view/webview';
 
 /**
  * Main state of the Code Graph. Each independent graph view (if multiple graph
@@ -6,7 +7,5 @@ import * as vscode from 'vscode';
  */
 export default interface GraphState {
     context: vscode.ExtensionContext,
-    panel: vscode.WebviewPanel | undefined;
-    column: vscode.ViewColumn;
-    resources: vscode.Uri;
+    view: GraphView,
 }
