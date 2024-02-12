@@ -4,6 +4,7 @@
 
 const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -62,18 +63,27 @@ const webviewConfig = {
     rules: [
       {
         test: /\.ts$/,
-        use: 'ts-loader',
         exclude: /node_modules/,
+        use: [
+          'ts-loader'
+        ]
       },
+      {
+        test: /\.css$/,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader'
+        ]
+      }
     ],
   },
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
-        { from: './src/webview/index.css', to: path.resolve(__dirname, 'dist/webview') },
         { from: './src/webview/index.html', to: path.resolve(__dirname, 'dist/webview') },
       ],
     }),
+    new MiniCssExtractPlugin(),
   ]
 };
 

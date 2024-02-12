@@ -59,7 +59,7 @@ export default class GraphView {
 
         // Convert loadable content URI to webview URI
         html = this.includeLocalResource("bundle.js", "---MAIN-JS--URI---", html);
-        html = this.includeLocalResource("index.css", "---MAIN-CSS--URI---", html);
+        html = this.includeLocalResource("main.css", "---MAIN-CSS--URI---", html);
 
         return html;
     }
