@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import * as access from '../util/access';
+import * as access from '../common/util/access';
 
 interface SomeType {
     a: number,

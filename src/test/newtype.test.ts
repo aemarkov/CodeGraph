@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import * as newtype from '../util/newtype';
+import * as newtype from '../common/util/newtype';
 
 type Foo = {
     value: number,
