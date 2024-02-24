@@ -5,16 +5,22 @@ const FONT_SIZE = 14;
 const NODE_PADDING = 8;
 
 /**
- * Graph node - represents a single symbol
+ * Graph node is a visual representation of symbol.
  */
 export default class Node {
-    group: fabric.Group;
-    text: fabric.Text;
-    rect: fabric.Rect;
+    private group: fabric.Group;
+    private text: fabric.Text;
+    private rect: fabric.Rect;
 
+    /**
+     * Create new Node instance
+     * @param id unique ID of the node
+     * @param name name of the node, e.g. name of function or variable
+     */
     constructor(
-        private id: number,
+        private id: string,
         private name: string) {
+
         const style = getDefaultStyle();
 
         this.text = new fabric.Text(this.name, {
@@ -48,6 +54,10 @@ export default class Node {
         setControls(this.group);
     }
 
+    getId(): string {
+        return this.id;
+    }
+
     getObject(): fabric.Group {
         return this.group;
     }
@@ -64,5 +74,4 @@ export default class Node {
 
         this.group.setCoords();
     }
-
 }
