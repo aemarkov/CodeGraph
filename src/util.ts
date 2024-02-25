@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Symbol } from './symbol';
+import { Symbol } from './code/symbol';
 
 /**
  * Get list of symbols in file.

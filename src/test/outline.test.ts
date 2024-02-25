@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import * as outline from '../outline';
-import {Symbol, SymbolInformation} from '../symbol';
+import * as outline from '../code/outline';
+import {Symbol, SymbolInformation} from '../code/symbol';
 import FakeCppSymbols from './fake_symbols_cpp';
 
 function getSymbolDoTest(symbols: Symbol[], position: vscode.Position, expected: SymbolInformation | undefined)

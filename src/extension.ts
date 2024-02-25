@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import GraphState from './graph_state';
 import GraphView from './view/webview';
-import { getSymbolUnderCursor } from './outline'
+import { getSymbolUnderCursor } from './code/outline'
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('[codegraph] loaded');

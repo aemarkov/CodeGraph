@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Symbol } from '../symbol';
+import { Symbol } from '../code/symbol';
 
 /* Fake symbols data for a sample C++ file for tests. */
 const FakeCppSymbols: Symbol[] =
