@@ -38,162 +38,113 @@
 
 import * as newtype from './util/newtype';
 
-// Edge representation
-class Edge<TEdge> {
-    public constructor(
-        public id: EdgeDescriptor,
-        public from: VertexDescriptor,  // Source vertex
-        public to: VertexDescriptor,    // Destination vertex
-        public context: TEdge,          // Optional user-defined data associated
-                                        //  with edge
-    ) {}
+interface Vertex<DEdge, DVertex> {
+    inbound: Edge<DVertex, DEdge>,
+    outbound: Edge<DVertex, DEdge>
 };
 
-// Vertex representation
-class Vertex<TVertex, TEdge> {
-    public in: Edge<TEdge>[];           // List of inbound edges
-    public out: Edge<TEdge>[];          // List of outbound edges
-    public context: TVertex;            // Optional user-defined data associated
-                                        //  with vertex
-
-    public constructor(context: TVertex) {
-        this.context = context;
-        this.in = [];
-        this.out = [];
-    }
-};
-
-// Descriptor (IDs) generator
-// Generates sequential numbers wrapped by NewType
-class Descriptor<T extends newtype.NewType> {
-    private value: number = 0;
-    public new(): T {
-        return newtype.to<T>(this.value++);
-    }
-};
-
-/**
- * Vertex identifier
- */
-export type VertexDescriptor = {
-    value: number,
-    readonly __tag: unique symbol
-};
-
-/**
- * Edge identifier
- */
-export type EdgeDescriptor = {
-    value: number,
-    readonly __tag: unique symbol
+interface Edge<DVertex, DEdge> {
+    edge: DEdge,
+    from: DVertex,
+    to: DVertex
 };
 
 /**
  * General directed graph structure.
  */
-export class Graph<TVertex, TEdge>
+export class Graph<DVertex, DEdge>
 {
-    private _vertices: Map<VertexDescriptor, Vertex<TVertex, TEdge>>;
-    private _edges: Map<EdgeDescriptor, Edge<TEdge>>;
-    private vertexDesc: Descriptor<VertexDescriptor>;
-    private edgeDesc: Descriptor<EdgeDescriptor>;
+    private _vertices: Map<DVertex, Edge<DVertex, DEdge>[]>;
+    private _edges: Map<DEdge, Edge<DVertex, DEdge>>;
 
     public constructor() {
-        this._vertices = new Map<VertexDescriptor, Vertex<TVertex, TEdge>>();
-        this._edges = new Map<EdgeDescriptor, Edge<TEdge>>();
-        this.vertexDesc = new Descriptor();
-        this.edgeDesc = new Descriptor();
+        this._vertices = new Map<DVertex, Edge<DVertex, DEdge>[]>();
+        this._edges = new Map<DEdge, Edge<DVertex, DEdge>>();
     }
 
     /**
      * Add vertex to the graph
      * O(1)
+     * @param id        new vertex descriptor
      * @param context   user-defined data to store in the vertex
-     * @returns         vertex descriptor used to access graph
      */
-    public addVertex(context: TVertex): VertexDescriptor {
-        const vertex = new Vertex<TVertex, TEdge>(context);
-        const descriptor = this.vertexDesc.new();
-        this._vertices.set(descriptor, vertex); // O(1)
-        return descriptor;
+    public addVertex(id: DVertex) {
+        if (this._vertices.get(id) !== undefined) {
+            throw new Error(`Vertex ${id} already exists`);
+        }
+
+        this._vertices.set(id, []);
     }
 
     /**
      * Add edge between two vertices to graph
      * O(1)
-     * @param from      source vertex
-     * @param to        destination vertex
+     * @param from      source vertex descriptor
+     * @param to        destination vertex descriptor
+     * @param id        new edge descriptor
      * @param context   user-defined data to store in the edge
-     * @returns         edge descriptor used to access graph
      */
-    public addEdge(from: VertexDescriptor, to: VertexDescriptor, context: TEdge): EdgeDescriptor {
-        let vertex1 = this.getVertex(from); // O(1)
-        let vertex2 = this.getVertex(to);   // O(1)
+    public addEdge(from: DVertex, to: DVertex, id: DEdge) {
+        const vFrom = this.getVertex(from);    // check if exists
+        const vTo = this.getVertex(to);        // check if exists
 
-        const descriptor = this.edgeDesc.new();
-        const edge = new Edge(descriptor, from, to, context);
-        this._edges.set(descriptor, edge); // O(1)
+        if (this._edges.has(id)) {
+            throw new Error(`Edge with descriptor ${id} already exists`);
+        }
 
-        vertex1.out.push(edge); // O(1)
-        vertex2.in.push(edge);  // O(1)
+        // NOTE: if don't want multiple edges between same vertices, it is
+        // possible to use Set<Edge<...>> instead of Edge<...>[]
 
-        return descriptor;
+        const edge = {
+            edge: id,
+            from: from,
+            to: to
+        };
+
+        vFrom.push(edge);
+        this._edges.set(id, edge);
     }
 
     /**
      * Remove vertex from graph
-     * O(Min * Mi_out + Mout * Mi_in)
+     * O(E)
      * @param vertex vertex descriptor
      */
-    public removeVertex(vertex: VertexDescriptor) {
-        let vertex_ = this.getVertex(vertex);                   // O(1)
+    public removeVertex(vertex: DVertex) {
 
-        // Delete all inbound and outbound edges of this vertex
-        for (const edge of vertex_.in) {
-            const outVertex = this._vertices.get(edge.from);    // O(1)
-            remove(outVertex!.out, edge);                       // O(M)
-            this._edges.delete(edge.id);                        // O(1)
-        }
-
-        for (const edge of vertex_.out) {
-            const inVertex = this._vertices.get(edge.to);
-            remove(inVertex!.in, edge);
-            this._edges.delete(edge.id);
-        }
-
-        // Delete vertex from map
-        this._vertices.delete(vertex);
     }
 
     /**
      * Remove edges from graph
-     * O(Min + Mout)
-     * @param edge edge descriptor
+     * O(M)
+     * @param id edge descriptor
      */
-    public removeEdge(edge: EdgeDescriptor) {
-        let edge_  = this.getEdge(edge);                // O(1)
-
-        // Remove edge from connected vertexes
-        const from = this._vertices.get(edge_.from);    // O(1)
-        remove(from!.out, edge_);                       // O(M)
-        const to = this._vertices.get(edge_.to);        // O(1)
-        remove(to!.in, edge_);                          // O(M)
-
-        this._edges.delete(edge);
+    public removeEdge(id: DEdge) {
+        const edge = this.getEdge(id);
+        remove(this.getVertex(edge.from), edge);
+        this._edges.delete(id);
     }
 
     /**
      * @returns iterator of all vertices
      */
-    public vertices(): Iterable<VertexDescriptor> {
+    public vertices(): Iterable<DVertex> {
         return this._vertices.keys();
     }
 
     /**
      * @returns iterator of all edges
      */
-    public edges(): Iterable<EdgeDescriptor> {
-        return this._edges.keys();
+    public edges(): Iterable<Edge<DVertex>> {
+        return this.edgesGenerator();
+    }
+
+    private* edgesGenerator() {
+        for (const [from, edges] of this._vertices.entries()) {
+            for (const to of edges) {
+                yield [from, to]
+            }
+        }
     }
 
     /**
@@ -202,9 +153,8 @@ export class Graph<TVertex, TEdge>
      * @param vertex    vertex descriptor
      * @returns         iterator of all adjacent vertex descriptors
      */
-    public adjacentVertices(vertex: VertexDescriptor): Iterable<VertexDescriptor> {
-        // NOTE: iterate twice, once map, once in a client code
-        return this.getVertex(vertex).out.map(x => x.to);   // O(M)
+    public adjacentVertices(vertex: DVertex): Iterable<DVertex> {
+        return this.getVertex(vertex);
     }
 
     /**
@@ -213,9 +163,8 @@ export class Graph<TVertex, TEdge>
      * @param vertex    vertex descriptor
      * @returns         iterator of all adjacent vertex descriptors
      */
-    public invAdjacentVertices(vertex: VertexDescriptor): Iterable<VertexDescriptor> {
-        // NOTE: iterate twice, once map, once in a client code
-        return this.getVertex(vertex).in.map(x => x.from);  // O(M)
+    public invAdjacentVertices(vertex: DVertex): Iterable<DVertex> {
+
     }
 
     /**
@@ -223,7 +172,7 @@ export class Graph<TVertex, TEdge>
      * @param vertex    vertex descriptor
      * @returns         iterator of all outgoing edge descriptors
      */
-    public inEdges(vertex: VertexDescriptor): Iterable<EdgeDescriptor> {
+    public inEdges(vertex: DVertex): Iterable<DEdge> {
         // NOTE: iterate twice, once map, once in a client code
         return this.getVertex(vertex).in.map(x => x.id);    // O(M)
     }
@@ -248,60 +197,29 @@ export class Graph<TVertex, TEdge>
         return [edge_.from, edge_.to];
     }
 
-    /**
-     * Return user-defined context stored in the vertex
-     * @param vertex    vertex descriptor
-     * @returns         user-defined context
-     */
-    public vertexGet(vertex: VertexDescriptor): TVertex {
-        return this.getVertex(vertex).context;
-    }
-
-    /**
-     * Store user-defined context in the vertex
-     * @param vertex  vertex descriptor
-     * @param context user-defined context
-     */
-    public vertexSet(vertex: VertexDescriptor, context: TVertex) {
-        this.getVertex(vertex).context = context;
-    }
-
-    /**
-     * Return user-defined context stored in the edge
-     * @param edge      edge descriptor
-     * @returns         user-defined context
-     */
-    public edgeGet(edge: EdgeDescriptor): TEdge {
-        return this.getEdge(edge).context;
-    }
-
-    /**
-     * Store user-defined context in the edge
-     * @param edge      edge descriptor
-     * @param context   user-defined context
-     */
-    public edgeSet(edge: EdgeDescriptor, context: TEdge) {
-        return this.getEdge(edge).context = context;
-    }
-
-    private getVertex(vertex: VertexDescriptor): Vertex<TVertex, TEdge> {
+    private getVertex(vertex: DVertex): Edge<DVertex, DEdge>[] {
         let vertex_ = this._vertices.get(vertex);
         if (vertex_ === undefined) {
-            throw ReferenceError(`Vertex ${vertex} doesn't exist`);
+            throw Error(`Vertex ${vertex} doesn't exist`);
         }
         return vertex_;
     }
 
-    private getEdge(edge: EdgeDescriptor): Edge<TEdge> {
+    private getEdge(edge: DEdge): Edge<DVertex, DEdge> {
         let edge_ = this._edges.get(edge);
         if (edge_ === undefined) {
-            throw ReferenceError(`Edge ${edge} doesn't exist`);
+            throw Error(`Edge ${edge} doesn't exist`);
         }
         return edge_;
     }
 };
 
-function remove<T>(arr: T[], object: T) {
-    const idx = arr.indexOf(object);                // O(M)
+function remove<T>(arr: T[], object: T): boolean {
+    const idx = arr.indexOf(object);
+    if (idx == -1) {
+        return false;
+    }
+
     arr.splice(idx, 1);
+    return true;
 }
