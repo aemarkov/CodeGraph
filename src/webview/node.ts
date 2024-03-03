@@ -1,5 +1,8 @@
 import { fabric } from 'fabric';
 import { Style, getDefaultStyle, setControls } from './drawing_utils';
+import { NodeId } from '../common/id';
+import * as access from '../common/util/access';
+import { assert } from 'console';
 
 const FONT_SIZE = 14;
 const NODE_PADDING = 8;
@@ -18,7 +21,7 @@ export default class Node {
      * @param name name of the node, e.g. name of function or variable
      */
     constructor(
-        private id: string,
+        private id: NodeId,
         private name: string) {
 
         const style = getDefaultStyle();
@@ -32,7 +35,7 @@ export default class Node {
             selectable: false,
         });
 
-        console.assert(this.text.width !== undefined && this.text.height !== undefined)
+        console.assert(this.text.width !== undefined && this.text.height !== undefined);
 
         this.rect = new fabric.Rect({
             width: this.text.width! + 2 * NODE_PADDING,
@@ -42,7 +45,7 @@ export default class Node {
             fill: '#535C91',
             stroke: '#9290C3',
             selectable: false,
-        })
+        });
 
         this.group = new fabric.Group([
             this.rect,
@@ -52,9 +55,11 @@ export default class Node {
             });
 
         setControls(this.group);
+        access.forceSet(this.group, 'node', this.id);
+
     }
 
-    getId(): string {
+    getId(): NodeId {
         return this.id;
     }
 

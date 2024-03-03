@@ -1,10 +1,12 @@
 import { fabric } from 'fabric';
+import { ReferenceId } from '../common/id';
+import * as access from '../common/util/access';
 
 /**
  * Graph edge is a visual representation of reference between two symbols.
  */
 export default class Edge {
-    private id: string;
+    private id: ReferenceId;
     private line: fabric.Line;
 
     /**
@@ -14,12 +16,10 @@ export default class Edge {
      * @param to destination node
      */
     constructor(
-        id: string,
-        from: fabric.Point,
-        to: fabric.Point
+        id: ReferenceId
     ) {
         this.id = id;
-        const coords = [from.x, from.y, to.x, to.y];
+        const coords = [0, 0, 0, 0];
         this.line = new fabric.Line(
             coords, {
             stroke: 'red',
@@ -27,6 +27,11 @@ export default class Edge {
             selectable: false,
             evented: false
         });
+        access.forceSet(this.line, 'edge', this.id);
+    }
+
+    getId(): ReferenceId {
+        return this.id;
     }
 
     getObject(): fabric.Line {

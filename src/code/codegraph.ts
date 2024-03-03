@@ -1,24 +1,13 @@
-import { v4 } from "uuid";
 import { Graph } from "../common/graph";
-import { getSymbolUnderCursor } from './outline';
 import * as newtype from '../common/util/newtype';
-import { SymbolInformation } from './symbol'
+import { SymbolInformation } from './symbol';
+import * as id from '../common/id';
 
-type NodeId = {
-    value: string,
-    readonly __tag: unique symbol,
-};
-
-type ReferenceId = {
-    value: string,
-    readonly __tag: unique symbol,
-};
-
-class Item<ID extends newtype.NewType> {
+class Item<ID> {
     private id: ID;
 
-    constructor() {
-        this.id = newtype.to(v4());
+    constructor(id: ID) {
+        this.id = id;
     }
 
     public getId(): ID {
@@ -31,11 +20,11 @@ class Item<ID extends newtype.NewType> {
  * Node can be a symbol (e.g. function or variable), file, module etc.
  * For now it's just a symbol
  */
-class Node extends Item<NodeId> {
+class Node extends Item<id.NodeId> {
     private symbol: SymbolInformation;
 
-    public constructor(symbol: SymbolInformation) {
-        super();
+    public constructor(id: id.NodeId, symbol: SymbolInformation) {
+        super(id);
         this.symbol = symbol;
     }
 
@@ -47,28 +36,28 @@ class Node extends Item<NodeId> {
 /**
  * Relation (reference) between nodesin code
  */
-class Reference extends Item<ReferenceId> {
-    public constructor() {
-        super();
+class Reference extends Item<id.ReferenceId> {
+    public constructor(id: id.ReferenceId) {
+        super(id);
     }
 };
 
 export default class CodeGraph {
-    private graph: Graph<Node, Reference>;
+    private graph: Graph<id.NodeId, id.ReferenceId>;
+    private nodes: Map<id.NodeId, Node>;
+    private references: Map<id.ReferenceId, Reference>;
 
     public constructor() {
         this.graph = new Graph();
+        this.nodes = new Map();
+        this.references = new Map();
     }
 
     public addSymbol(symbol: SymbolInformation) {
-        const node = this.findNode(symbol);
-        if (node  !== undefined) {
-            // this node already exists
-            return;
-        }
-
-        const newNode = new Node(symbol);
-        const v = this.graph.addVertex(newNode);
+        const id = newtype.to<id.NodeId>(1); // TODO: create unique ID
+        this.graph.addVertex(id);
+        const node = new Node(id, symbol);
+        this.nodes.set(id, node);
     }
 
     public addReference(from: SymbolInformation, to: SymbolInformation) {
@@ -77,8 +66,7 @@ export default class CodeGraph {
 
     private findNode(symbol: SymbolInformation) : Node | undefined {
         // Note: naive implementation for now
-        for (const nodeId of this.graph.vertices()) {
-            const node = this.graph.vertexGet(nodeId);
+        for (const [id, node] of this.nodes.entries()) {
             if (node.getSymbol() === symbol) {
                 return node;
             }
