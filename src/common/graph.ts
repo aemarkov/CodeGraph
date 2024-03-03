@@ -3,32 +3,15 @@
  *
  * Notes on implementation:
  * There are many ways to implement a graph, so I choose the most weird.
- * It's a well-known adjacency list, but vertices stored in the Map instead of
- * array because it's vertices can be removed. Because edge can also store data,
- * adjacency list doesn't store VertexDescriptors of vertex's neighbors,
- * instead it stores Edge objects. Also, each Edge object stored in a separate
- * edges map. It's only used to check if edge accessed belongs to this graph
- * instance.
+ * It's a well-known adjacency list, but with some details:
+ *  - vertices stored as Map instead of list because vertex IDs a provided by
+ *    external code and vertexes can be removed
+ *  - reverseVertices map is added to list inbound connections of the vertex
+ *  - vertices/reverseVertices stores not vertex ID but object SEdge. It's used
+ *    to get EdgeId by vertex and remove edge from edges map.
+ *  - edge map is used to map EdgeId to vertices IDs (from - to)
  *
  * Interface is inspired by Boost Graph Library
- *
- * Possible modifications:
- *  - store EdgeDescriptor instead of Edge in each Vertex.
- *      pros: more pure
- *      cons: extra map lookup for each neighbor access
- *
- *  - store Vertex instead of VertexDescriptor in each Edge
- *      pros: no map lookup at all for neighbor access
- *      cons: more cross-references, asymmetric interface (vertex enumeration returns
- *            VertexDescriptor, but neighbors/edges enumeration returns Edges objects)
- *
- *  - previous one + remove edges map
- *      pros: previous one + less memory consumptions
- *      cons: previous one + can't check if edge belongs to this graph instance.
- *
- *  - store user context in the Vertex/Edge descriptor
- *      pros: no map lookup to get context, no getters/setters
- *      cons: Not so clean, also I don't know how to work with HashMap in this case
  *
  *  Definitions:
  *   - N - number of vertices
@@ -36,29 +19,40 @@
  *   - M - number of ingoing/outgoing edges of given vertex
  */
 
-import * as newtype from './util/newtype';
 import * as util from 'util';
 
+/**
+ * Edge - pair of source and destination vertexes.
+ */
 export interface Edge<DVertex> {
     from: DVertex,
     to: DVertex
 };
+
+interface SEdge<DVertex, DEdge> {
+    id: DEdge,
+    from: DVertex,
+    to: DVertex,
+};
+
+interface SVertex<DVertex, DEdge> {
+    inbound: SEdge<DVertex, DEdge>[],
+    outbound: SEdge<DVertex, DEdge>[],
+}
 
 /**
  * General directed graph structure.
  */
 export class Graph<DVertex, DEdge>
 {
-    private _vertices: Map<DVertex, DVertex[]>;
-    private _reverseVertices: Map<DVertex, DVertex[]>;
-    private _edges: Map<DEdge, Edge<DVertex>>;
-    private _reverseEdges: Map<Edge<DVertex>, DEdge>;
+    private _vertices: Map<DVertex, SEdge<DVertex, DEdge>[]>;
+    private _reverseVertices: Map<DVertex, SEdge<DVertex, DEdge>[]>;
+    private _edges: Map<DEdge, SEdge<DVertex, DEdge>>;
 
     public constructor() {
         this._vertices = new Map();
         this._reverseVertices = new Map();
         this._edges = new Map();
-        this._reverseEdges = new Map();
     }
 
     /**
@@ -93,51 +87,54 @@ export class Graph<DVertex, DEdge>
         }
 
         const edge = {
+            id: id,
             from: from,
             to: to
         };
 
-        vFrom.push(to);
-        vTo.push(from);
+        vFrom.push(edge);
+        vTo.push(edge);
         this._edges.set(id, edge);
-        this._reverseEdges.set(edge, id);
     }
 
     /**
      * Remove vertex from graph
-     * O(E)
-     * @param vertex vertex descriptor
+     * ~O(M)
+     * @param id    vertex descriptor
      */
-    public removeVertex(vertex: DVertex) {
-        const vFrom = this.getVertex(vertex);
+    public removeVertex(id: DVertex) {
+        const vFrom = this.getVertex(id);
+        const vTo = this._reverseVertices.get(id)!;
 
-        for (const vRev of vFrom) {
-            const edge = {
-                from: vertex,
-                to: vRev
-            };
-            const edgeId = this._reverseEdges.get(edge)!;
-            this._edges.delete(edgeId);
-            this._reverseEdges.delete(edge);
-
-            const vTo = this._reverseVertices.get(vRev)!;
-            remove(vTo, vertex);
+        // delete outbound edges
+        for (const eOut of vFrom) {
+            const vTo = this._reverseVertices.get(eOut.to)!;
+            remove(vTo, eOut);
+            this._edges.delete(eOut.id);
         }
 
-        this._vertices.delete(vertex);
+        for (const eIn of vTo) {
+            const vFrom = this._vertices.get(eIn.from)!;
+            remove(vFrom, eIn);
+            this._edges.delete(eIn.id);
+        }
+
+        this._vertices.delete(id);
+        this._reverseVertices.delete(id);
     }
 
     /**
      * Remove edges from graph
-     * O(M)
-     * @param id edge descriptor
+     * ~O(M)
+     * @param id    edge descriptor
      */
     public removeEdge(id: DEdge) {
         const edge = this.getEdge(id);
-        remove(this._vertices.get(edge.from)!, edge.to);
-        remove(this._reverseVertices.get(edge.to)!, edge.from);
+        const vFrom = this._vertices.get(edge.from)!;
+        const vTo = this._reverseVertices.get(edge.to)!;
+        remove(vFrom, edge);
+        remove(vTo, edge);
         this._edges.delete(id);
-        this._reverseEdges.delete(edge);
     }
 
     /**
@@ -157,61 +154,59 @@ export class Graph<DVertex, DEdge>
     /**
      * Return all vertices given vertex is connected to by outgoing edges
      * vertex -> u
-     * @param vertex    vertex descriptor
-     * @returns         iterator of all adjacent vertex descriptors
+     * @param id    vertex descriptor
+     * @returns     iterator of all adjacent vertex descriptors
      */
-    public adjacentVertices(vertex: DVertex): Iterable<DVertex> {
-        return this.getVertex(vertex);
+    public adjacentVertices(id: DVertex): Iterable<DVertex> {
+        // NOTE: iterate twice, once map, once in a client code
+        return this.getVertex(id).map(x => x.to);
     }
 
     /**
      * Return all vertices given vertex is connected to by ingoing edges
      * u -> vertex
-     * @param vertex    vertex descriptor
-     * @returns         iterator of all adjacent vertex descriptors
+     * @param id    vertex descriptor
+     * @returns     iterator of all adjacent vertex descriptors
      */
-    public invAdjacentVertices(vertex: DVertex): Iterable<DVertex> {
-        return this.getReverseVertex(vertex);
+    public invAdjacentVertices(id: DVertex): Iterable<DVertex> {
+        // NOTE: iterate twice, once map, once in a client code
+        return this.getReverseVertex(id).map(x => x.from);
     }
 
     /**
      * Return all outgoing edges
-     * @param vertex    vertex descriptor
-     * @returns         iterator of all outgoing edge descriptors
+     * @param id    vertex descriptor
+     * @returns     iterator of all outgoing edge descriptors
      */
-    public inEdges(vertex: DVertex): Iterable<DEdge> {
+    public inEdges(id: DVertex): Iterable<DEdge> {
         // NOTE: iterate twice, once map, once in a client code
-        const vFrom = this.getReverseVertex(vertex);
-        return vFrom.map(x=>this._reverseEdges.get({from: x, to: vertex})!);
+        const vFrom = this.getReverseVertex(id);
+        return vFrom.map(x => x.id);
     }
 
     /**
      * Return all ingoing edges
-     * @param vertex    vertex descriptor
-     * @returns         iterator of all ingoing edge descriptors
+     * @param id    vertex descriptor
+     * @returns     iterator of all ingoing edge descriptors
      */
-    public outEdges(vertex: DVertex): Iterable<DEdge> {
+    public outEdges(id: DVertex): Iterable<DEdge> {
         // NOTE: iterate twice, once map, once in a client code
-        const vTo = this.getVertex(vertex);
-        console.log(`from: ${vertex}, to ${util.inspect(vTo)}`);
-        for (const x of vTo) {
-            const edge = {from: vertex, to: x};
-            const e = this._reverseEdges.get(edge);
-            console.log(`${util.inspect(edge)} -> ${e}`);
-        }
-        return vTo.map(x=>this._reverseEdges.get({from: vertex, to: x})!);
+        const vTo = this.getVertex(id);
+        return vTo.map(x => x.id);
     }
 
     /**
      * Return vertices are connected by edge
-     * @param edge      edge descriptor
-     * @returns         tuple <outgoing vertex, ingoing vertex>
+     * @param id    edge descriptor
+     * @returns     Edge object
      */
-    public edgeNodes(edge: DEdge): Edge<DVertex> {
-        return this.getEdge(edge);
+    public edgeNodes(id: DEdge): Edge<DVertex> {
+        return this.getEdge(id);
     }
 
-    private getVertexImpl(vertices: Map<DVertex, DVertex[]>, vertex: DVertex): DVertex[] {
+    private getVertexImpl(
+        vertices: Map<DVertex, SEdge<DVertex, DEdge>[]>,
+        vertex: DVertex): SEdge<DVertex, DEdge>[] {
         let vertex_ = vertices.get(vertex);
         if (vertex_ === undefined) {
             throw Error(`Vertex ${vertex} doesn't exist`);
@@ -219,11 +214,11 @@ export class Graph<DVertex, DEdge>
         return vertex_;
     }
 
-    private getVertex(vertex: DVertex): DVertex[] {
+    private getVertex(vertex: DVertex): SEdge<DVertex, DEdge>[] {
         return this.getVertexImpl(this._vertices, vertex);
     }
 
-    private getReverseVertex(vertex: DVertex): DVertex[] {
+    private getReverseVertex(vertex: DVertex): SEdge<DVertex, DEdge>[] {
         return this.getVertexImpl(this._reverseVertices, vertex);
     }
 
@@ -239,29 +234,24 @@ export class Graph<DVertex, DEdge>
         console.log('debug');
         console.log('Vertices:');
         for (const [k, v] of this._vertices.entries()) {
-            console.log(`${k}: ${util.inspect(v)}`)
+            console.log(`${k}: ${util.inspect(v)}`);
         }
 
         console.log('Reverse vertexes:');
         for (const [k, v] of this._reverseVertices.entries()) {
-            console.log(`${k}: ${util.inspect(v)}`)
+            console.log(`${k}: ${util.inspect(v)}`);
         }
 
         console.log('Edges:');
         for (const [k, v] of this._edges.entries()) {
-            console.log(`${k}: ${util.inspect(v)}`)
-        }
-
-        console.log('Reverse edges:');
-        for (const [k, v] of this._reverseEdges.entries()) {
-            console.log(`${util.inspect(k)}: ${v}`)
+            console.log(`${k}: ${util.inspect(v)}`);
         }
     }
 };
 
 function remove<T>(arr: T[], object: T): boolean {
     const idx = arr.indexOf(object);
-    if (idx == -1) {
+    if (idx === -1) {
         return false;
     }
 

@@ -7,7 +7,7 @@ function createGraph() {
     [0, 1, 2, 3].map(x => graph.addVertex(x));
     graph.addEdge(0, 1, 0);
     graph.addEdge(0, 2, 1);
-    graph.addEdge(1, 3, 2)
+    graph.addEdge(1, 3, 2);
     graph.addEdge(2, 3, 3);
 
     return {
@@ -96,7 +96,6 @@ suite('graph', () => {
 
     test('outEdges/positive', () => {
         const g = createGraph();
-        g.graph.debug();
         assert.deepEqual(Array.from(g.graph.outEdges(g.v0)), [g.e01, g.e02]);
         assert.deepEqual(Array.from(g.graph.outEdges(g.v1)), [g.e13]);
         assert.deepEqual(Array.from(g.graph.outEdges(g.v2)), [g.e23]);
@@ -157,6 +156,7 @@ suite('graph', () => {
 
     test('removeEdge/positive', () => {
         const g = createGraph();
+
         g.graph.removeEdge(g.e01);
 
         assert.deepEqual(Array.from(g.graph.vertices()), [g.v0, g.v1, g.v2, g.v3]);
