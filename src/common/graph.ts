@@ -37,14 +37,9 @@
  */
 
 import * as newtype from './util/newtype';
+import * as util from 'util';
 
-interface Vertex<DEdge, DVertex> {
-    inbound: Edge<DVertex, DEdge>,
-    outbound: Edge<DVertex, DEdge>
-};
-
-interface Edge<DVertex, DEdge> {
-    edge: DEdge,
+export interface Edge<DVertex> {
     from: DVertex,
     to: DVertex
 };
@@ -54,12 +49,16 @@ interface Edge<DVertex, DEdge> {
  */
 export class Graph<DVertex, DEdge>
 {
-    private _vertices: Map<DVertex, Edge<DVertex, DEdge>[]>;
-    private _edges: Map<DEdge, Edge<DVertex, DEdge>>;
+    private _vertices: Map<DVertex, DVertex[]>;
+    private _reverseVertices: Map<DVertex, DVertex[]>;
+    private _edges: Map<DEdge, Edge<DVertex>>;
+    private _reverseEdges: Map<Edge<DVertex>, DEdge>;
 
     public constructor() {
-        this._vertices = new Map<DVertex, Edge<DVertex, DEdge>[]>();
-        this._edges = new Map<DEdge, Edge<DVertex, DEdge>>();
+        this._vertices = new Map();
+        this._reverseVertices = new Map();
+        this._edges = new Map();
+        this._reverseEdges = new Map();
     }
 
     /**
@@ -74,6 +73,7 @@ export class Graph<DVertex, DEdge>
         }
 
         this._vertices.set(id, []);
+        this._reverseVertices.set(id, []);
     }
 
     /**
@@ -85,24 +85,22 @@ export class Graph<DVertex, DEdge>
      * @param context   user-defined data to store in the edge
      */
     public addEdge(from: DVertex, to: DVertex, id: DEdge) {
-        const vFrom = this.getVertex(from);    // check if exists
-        const vTo = this.getVertex(to);        // check if exists
+        const vFrom = this.getVertex(from);     // check if exists
+        const vTo = this.getReverseVertex(to);  // check if exists
 
         if (this._edges.has(id)) {
             throw new Error(`Edge with descriptor ${id} already exists`);
         }
 
-        // NOTE: if don't want multiple edges between same vertices, it is
-        // possible to use Set<Edge<...>> instead of Edge<...>[]
-
         const edge = {
-            edge: id,
             from: from,
             to: to
         };
 
-        vFrom.push(edge);
+        vFrom.push(to);
+        vTo.push(from);
         this._edges.set(id, edge);
+        this._reverseEdges.set(edge, id);
     }
 
     /**
@@ -111,7 +109,22 @@ export class Graph<DVertex, DEdge>
      * @param vertex vertex descriptor
      */
     public removeVertex(vertex: DVertex) {
+        const vFrom = this.getVertex(vertex);
 
+        for (const vRev of vFrom) {
+            const edge = {
+                from: vertex,
+                to: vRev
+            };
+            const edgeId = this._reverseEdges.get(edge)!;
+            this._edges.delete(edgeId);
+            this._reverseEdges.delete(edge);
+
+            const vTo = this._reverseVertices.get(vRev)!;
+            remove(vTo, vertex);
+        }
+
+        this._vertices.delete(vertex);
     }
 
     /**
@@ -121,8 +134,10 @@ export class Graph<DVertex, DEdge>
      */
     public removeEdge(id: DEdge) {
         const edge = this.getEdge(id);
-        remove(this.getVertex(edge.from), edge);
+        remove(this._vertices.get(edge.from)!, edge.to);
+        remove(this._reverseVertices.get(edge.to)!, edge.from);
         this._edges.delete(id);
+        this._reverseEdges.delete(edge);
     }
 
     /**
@@ -135,16 +150,8 @@ export class Graph<DVertex, DEdge>
     /**
      * @returns iterator of all edges
      */
-    public edges(): Iterable<Edge<DVertex>> {
-        return this.edgesGenerator();
-    }
-
-    private* edgesGenerator() {
-        for (const [from, edges] of this._vertices.entries()) {
-            for (const to of edges) {
-                yield [from, to]
-            }
-        }
+    public edges(): Iterable<DEdge> {
+        return this._edges.keys();
     }
 
     /**
@@ -164,7 +171,7 @@ export class Graph<DVertex, DEdge>
      * @returns         iterator of all adjacent vertex descriptors
      */
     public invAdjacentVertices(vertex: DVertex): Iterable<DVertex> {
-
+        return this.getReverseVertex(vertex);
     }
 
     /**
@@ -174,7 +181,8 @@ export class Graph<DVertex, DEdge>
      */
     public inEdges(vertex: DVertex): Iterable<DEdge> {
         // NOTE: iterate twice, once map, once in a client code
-        return this.getVertex(vertex).in.map(x => x.id);    // O(M)
+        const vFrom = this.getReverseVertex(vertex);
+        return vFrom.map(x=>this._reverseEdges.get({from: x, to: vertex})!);
     }
 
     /**
@@ -182,9 +190,16 @@ export class Graph<DVertex, DEdge>
      * @param vertex    vertex descriptor
      * @returns         iterator of all ingoing edge descriptors
      */
-    public outEdges(vertex: VertexDescriptor): Iterable<EdgeDescriptor> {
+    public outEdges(vertex: DVertex): Iterable<DEdge> {
         // NOTE: iterate twice, once map, once in a client code
-        return this.getVertex(vertex).out.map(x => x.id);   // O(M)
+        const vTo = this.getVertex(vertex);
+        console.log(`from: ${vertex}, to ${util.inspect(vTo)}`);
+        for (const x of vTo) {
+            const edge = {from: vertex, to: x};
+            const e = this._reverseEdges.get(edge);
+            console.log(`${util.inspect(edge)} -> ${e}`);
+        }
+        return vTo.map(x=>this._reverseEdges.get({from: vertex, to: x})!);
     }
 
     /**
@@ -192,25 +207,55 @@ export class Graph<DVertex, DEdge>
      * @param edge      edge descriptor
      * @returns         tuple <outgoing vertex, ingoing vertex>
      */
-    public edgeNodes(edge: EdgeDescriptor): [VertexDescriptor, VertexDescriptor] {
-        const edge_ = this.getEdge(edge);
-        return [edge_.from, edge_.to];
+    public edgeNodes(edge: DEdge): Edge<DVertex> {
+        return this.getEdge(edge);
     }
 
-    private getVertex(vertex: DVertex): Edge<DVertex, DEdge>[] {
-        let vertex_ = this._vertices.get(vertex);
+    private getVertexImpl(vertices: Map<DVertex, DVertex[]>, vertex: DVertex): DVertex[] {
+        let vertex_ = vertices.get(vertex);
         if (vertex_ === undefined) {
             throw Error(`Vertex ${vertex} doesn't exist`);
         }
         return vertex_;
     }
 
-    private getEdge(edge: DEdge): Edge<DVertex, DEdge> {
+    private getVertex(vertex: DVertex): DVertex[] {
+        return this.getVertexImpl(this._vertices, vertex);
+    }
+
+    private getReverseVertex(vertex: DVertex): DVertex[] {
+        return this.getVertexImpl(this._reverseVertices, vertex);
+    }
+
+    private getEdge(edge: DEdge): Edge<DVertex> {
         let edge_ = this._edges.get(edge);
         if (edge_ === undefined) {
             throw Error(`Edge ${edge} doesn't exist`);
         }
         return edge_;
+    }
+
+    public debug() {
+        console.log('debug');
+        console.log('Vertices:');
+        for (const [k, v] of this._vertices.entries()) {
+            console.log(`${k}: ${util.inspect(v)}`)
+        }
+
+        console.log('Reverse vertexes:');
+        for (const [k, v] of this._reverseVertices.entries()) {
+            console.log(`${k}: ${util.inspect(v)}`)
+        }
+
+        console.log('Edges:');
+        for (const [k, v] of this._edges.entries()) {
+            console.log(`${k}: ${util.inspect(v)}`)
+        }
+
+        console.log('Reverse edges:');
+        for (const [k, v] of this._reverseEdges.entries()) {
+            console.log(`${util.inspect(k)}: ${v}`)
+        }
     }
 };
 
